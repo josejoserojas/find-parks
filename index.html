@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+  <title>Maps SDK for Web - Find Parks!</title>
+
+  <link rel='stylesheet' type='text/css' href='https://api.tomtom.com/maps-sdk-for-web/cdn/6.x/6.13.0/maps/maps.css'>
+  <script src="https://api.tomtom.com/maps-sdk-for-web/cdn/6.x/6.13.0/maps/maps-web.min.js"></script>
+  <script src="https://api.tomtom.com/maps-sdk-for-web/cdn/6.x/6.13.0/services/services-web.min.js"></script>
+
+</head>
+
+<body>
+  <style>
+    #marker {
+      background-image: url('https://webstockreview.net/images/tree-icon-png-2.png');
+      background-size: cover;
+      width: 50px;
+      height: 50px;
+    }
+  </style>
+  <input style="font-family:Noway; font-size:30px" type="text" id="myText" value="">
+  <button style="font-family:Noway; font-size:30px" onclick="searchParks()">Find Parks!</button>
+  <div style="width:1280px; height: 720px;" id='map'></div>
+  <div style="font-family:Noway; font-size:30px" id="result"></div>
+
+  <script>
+
+    const LA = [-118.243683, 34.052235]
+
+    var map = tt.map({
+      key: 'API_KEY', // <-- Get your free at developer.tomtom.com
+      container: 'map',
+      center: LA,
+      pitch: 60,
+      zoom: 13
+    });
+
+    function moveMapTo(lngLat) {
+      map.flyTo({
+        center: lngLat,
+        zoom: 17
+      });
+    }
+
+    var handleSingleResult = function (result) {
+      console.log(result)
+      if (result.results) {
+        moveMapTo(result.results[0].position);
+        document.getElementById("result").innerHTML = result.results[0].address.freeformAddress
+
+        // add a default marker for the center location
+        var marker = new tt.Marker()
+          .setLngLat(result.results[0].position)
+          .addTo(map)
+
+        moveMapTo(marker.getLngLat())
+
+        // Wait some seconds and search for the parks around
+        setTimeout(findParks(marker.getLngLat()), 3000)
+      }
+    }
+
+    var originPosition
+    var findParks = function (position) {
+      const API_KEY = 'API_KEY'
+      originPosition = position
+      tt.services.fuzzySearch({
+        key: API_KEY,
+        query: 'park',
+        idxSet: 'POI',
+        categorySet: '9362', // Parks
+        center: position // <-- This gives us a bias location
+      })
+        .then(handleSeveralResults)
+    }
+
+    let count = 0;
+    var handleSeveralResults = function (result) {
+      console.log(result)
+
+      if (result.results) {
+        const pois = result.results
+        pois.map((poi) => {
+          // add a tree marker
+          var customMarker = document.createElement('div');
+          customMarker.id = 'marker';
+          var marker = new tt.Marker({ element: customMarker }).setLngLat(poi.position).addTo(map);
+
+          var popupOffsets = {
+            top: [0, 0],
+            bottom: [0, -50],
+            left: [25, -50],
+            right: [-25, -50]
+          }
+          marker.setPopup(new tt.Popup({ offset: popupOffsets }).setText(poi.poi.name))
+          // Now wait a bit before creating the route to the park.
+          setTimeout(route(originPosition, poi.position, count), 2000 * count)
+          count++
+
+        })
+
+      }
+
+    }
+
+    // Search for the location first!
+    var searchParks = function () {
+      const API_KEY = 'API_KEY'
+      tt.services.fuzzySearch({
+        key: API_KEY,
+        query: document.getElementById("myText").value,
+        idxSet: 'Geo,Addr,PAD'  // Search for addresses, cities, geographical locations etc
+      })
+        .then(handleSingleResult)
+    }
+
+    // Simple A->B pedestrian route
+    function route(A, B, index) {
+      tt.services.calculateRoute({
+        key: 'API_KEY',
+        locations: [A, B],
+        travelMode: 'pedestrian'
+      })
+        .then((result) => {
+          console.log(result)
+
+          const geojson = result.toGeoJson()
+          if (map.getLayer('route' + index)) {
+            map.removeLayer('route' + index)
+            map.removeSource('route' + index)
+          }
+          map.addLayer({
+            'id': 'route' + index,
+            'type': 'line',
+            'source': {
+              'type': 'geojson',
+              'data': geojson
+            },
+            'paint': {
+              'line-color': 'green',
+              'line-width': 4,
+              'line-dasharray': [2, 2]
+            }
+          });
+        })
+    }
+
+  </script>
+</body>
+
+</html>
