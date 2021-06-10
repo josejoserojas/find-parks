@@ -1,4 +1,4 @@
-# Find parks around you fot your picnic!
+# Find parks around you for your picnic!
 
 For Picnic days we created this small sample to search for parks around a location.
 
